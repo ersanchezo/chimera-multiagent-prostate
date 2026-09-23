@@ -1,0 +1,46 @@
+# Chimera Prostate Agent Configuration
+
+llm:
+  provider: "openai"           # openai | vllm
+  base_url: "http://127.0.0.1:8765/v1"
+  model: "Qwen3-4B-Instruct"
+  api_key: "not-needed"
+  temperature: 0.1
+  max_tokens: 2048
+
+embeddings:
+  model: "embeddinggemma-300m"
+  device: "cpu"
+
+retrieval:
+  guideline_index_path: "resources/guidelines_db/faiss_index"
+  top_k_per_query: 3
+  max_evidence_chunks: 7
+  reranker_model: "BAAI/bge-reranker-v2-m3"
+
+ml_models:
+  mri_classifier_path: "models/mri_embedding_classifier.pkl"
+  clinical_classifier_path: "models/clinical_readiness_model.pkl"
+  mri_embedding_dim: 1024
+  prediction_threshold: 0.5
+  timeout_seconds: 10
+
+fusion:
+  weights:
+    llm_decision: 0.40
+    mri_model: 0.25
+    clinical_model: 0.25
+    validator: 0.10
+  uncertain_band: [0.35, 0.65]
+  human_review_threshold: 0.35
+  disagreement_threshold: 0.5
+  min_disagreements_for_review: 2
+
+hitl:
+  enable_checkpoints: true
+  require_review_for_rejected: true
+  require_review_for_uncertain: true
+
+logging:
+  level: "INFO"
+  audit_log_path: "logs/audit.jsonl"
