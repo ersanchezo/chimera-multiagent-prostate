@@ -2,22 +2,135 @@
   <img src="docs/images/thumbnail.png" alt="CHIMERA Agent" width="250">
 </p>
 
-# Chimera Agent Baseline
+# Chimera Multi Agent System
 
-Baseline agent for the
+My implementation of multi-agentic system for the
 [CHIMERA-Agent challenge](https://chimera-agent.grand-challenge.org/chimera-agent/).
 A LangGraph ReAct loop calls clinical tools served via MCP, retrieves
 guidelines via RAG, and emits a structured per-case decision through a
 terminal form-fill node.
 
-## Quick start
+My implementation is an 8-agent LangGraph pipeline that performs parallel query-decomposed RAG and concurrent deep learning/clinical ML inference. It then elevates decision reliability by cross-checking reasoning through a guideline validator and combining all risk signals into a rule-based ensemble fusion node for calibrated, auditable outputs.
+# Architecture Overview
 
-```bash
-uv venv && source .venv/bin/activate
-cp .env.example .env                    # add HF_TOKEN
-make install
-make test
-```
+This repository implements a localized multi-agent decision support system orchestrated via LangGraph. It replaces the baseline's monolithic ReAct loop with a dedicated Directed Acyclic Graph (DAG) designed to enhance reasoning reliability through specialized agents, concurrent localized ML inference, and query-decomposed RAG.
+
+The system integrates directly into the official CHIMERA runner framework. It interfaces with the organizing framework’s Model Context Protocol (MCP) server to simulate realistic EHR masking while executing localized, state-of-the-art machine learning models on MRI embeddings and clinical features.
+
+## Visual System Architecture
+
+```mermaid
+graph TD
+    %% Base Styling
+    classDef baseline fill:#f9f,stroke:#333,stroke-width:2px;
+    classDef agent fill:#e1f5fe,stroke:#0277bd,stroke-width:1px;
+    classDef tool fill:#e8f5e9,stroke:#2e7d32,stroke-width:1px,stroke-dasharray: 5 5;
+    classDef localModel fill:#fff3e0,stroke:#ef6c00,stroke-width:2px;
+    classDef state fill:#f3e5f5,stroke:#7b1fa2,stroke-width:1px;
+
+    %% Input/Output
+    subgraph GC ["Grand Challenge Environment"]
+        Input["Case Input (data/task1/agent_input/)"]
+        Output["GC Outputs (output/task1/)"]
+    end
+
+    %% Baseline Wrapper
+    subgraph Runner ["Baseline Runner (run.py)"]
+        direction TB
+        Hydra["Hydra Configuration"]
+        CaseLoad["Case Loader & Jinja Template"]
+        Orchestrator["src.chimera_agent_baseline.agent.graph.create_graph()"]
+    end
+
+    %% The Core State
+    SharedState[("MultiAgentState
+    (State Dictionary)")]:::state
+
+    %% The LangGraph DAG
+    subgraph CustomGraph ["Custom LangGraph DAG (Refactored graph.py)"]
+        direction TB
+        NodeExtractor[["1. Data Extractor
+        (Tool Caller Agent)"]]:::agent
+        NodeML[["2. Concurrent ML Inference
+        (ThreadPool)"]]:::agent
+        NodeRisk[["3. Risk Stratifier"]]:::agent
+        NodeDecomp[["4. Query Decomposer"]]:::agent
+        NodeRetrieval[["5. Parallel Retrieval"]]:::agent
+        NodeDecider[["6. Biopsy Decider
+        (CoT Reasoning)"]]:::agent
+        NodeValidator[["7. Guideline Validator"]]:::agent
+        NodeFusion[["8. Deterministic Ensemble Fusion
+        (Terminal Node)"]]:::agent
+    end
+
+    %% External Systems Interfaced
+    subgraph MCP ["CHIMERA MCP Server (Provided)"]
+        direction TB
+        ToolEHR{{"EHR Simulation Tools
+        (PSA, Notes, Labs)"}}:::tool
+        ToolRAG{{"search_guidelines
+        (ChromaDB Tool)"}}:::tool
+    end
+
+    subgraph LocalModels ["Custom localized Models"]
+        direction TB
+        PtMRI[["localized PyTorch
+        MRI Model"]]:::localModel
+        SklearnClin[["localized Sklearn
+        Clinical Model"]]:::localModel
+    end
+
+    %% UTILS
+    AuditLog[("Audit Logger
+    (Immutable JSONL logs)")]:::baseline
+
+    %% --- Connections & Flow ---
+
+    %% Input to Graph Start
+    Input --> CaseLoad
+    CaseLoad --> SharedState
+    SharedState -. Initialize .-> Orchestrator
+
+    %% Graph Internal Connections
+    Orchestrator --> NodeExtractor
+    NodeExtractor --> NodeML
+    NodeML --> NodeRisk
+    NodeRisk --> NodeDecomp
+    NodeDecomp --> NodeRetrieval
+    NodeRetrieval --> NodeDecider
+    NodeDecider --> NodeValidator
+    
+    %% Conditional Logic for safety loop
+    NodeValidator -- "Wait/Fix Loop" --> NodeDecomp
+    NodeValidator -- "Validated" --> NodeFusion
+    NodeFusion --> END[END node]
+
+    %% Shared State Merging (Partial Updates)
+    NodeExtractor -. Merges Updates .-> SharedState
+    NodeML -. Merges Updates .-> SharedState
+    NodeRisk -. Merges Updates .-> SharedState
+    NodeFusion -. Fills schema .-> SharedState
+
+    %% Tool/Model Invocations
+    NodeExtractor ==> ToolEHR
+    NodeML ==> PtMRI
+    NodeML ==> SklearnClin
+    NodeRetrieval ==> ToolRAG
+
+    %% Utility Connections
+    NodeExtractor -. Logs transition .-> AuditLog
+    NodeDecider -. Logs transition .-> AuditLog
+    NodeFusion -. Logs transition .-> AuditLog
+
+    %% Output Final JSON
+    SharedState -- "formats structured response" --> Output
+
+    %% Formatting links
+    linkStyle 10,11,12 stroke:#7b1fa2,stroke-width:1px,stroke-dasharray: 3 3;
+    linkStyle 13,14,15,16 stroke:#2e7d32,stroke-width:2px;
+    linkStyle 17,18,19 stroke:#7b1fa2,stroke-width:1px,stroke-dasharray: 3 3;
+
+
 
 Download the LLM and embedding model (requires accepted licenses on
 [Gemma 4](https://huggingface.co/google/gemma-4-E2B-it) and
