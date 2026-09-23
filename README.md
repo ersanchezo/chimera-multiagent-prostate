@@ -136,14 +136,19 @@ Node 1: Data Extractor (Active EHR Uncovering): Unlike baselines that ingest fla
 
 Node 2: Concurrent ML Inference: This node executes two localized, quantitative machine learning models in parallel using a python thread pool, ensuring efficient execution without blocking the main LLM thread.   MRI Classifier: Executes a localized PyTorch deep learning model against frozen modality-level embeddings (derived from patient imaging) to determine clinically significant prostate cancer (csPCa) probability.   Clinical Readiness Model: Executes a localized Scikit-Learn classifier on extracted patient clinical features to compute a baseline biopsy readiness probability.   
 
-Nodes 3–5: Structured Knowledge Retrieval stack: Instead of ad-hoc retrieval, this stack applies Structural Query Decomposition.Risk Stratifier (Node 3): Combines LLM reasoning with rules to perform dynamic NCCN risk categorization.   
+Nodes 3–5: Structured Knowledge Retrieval stack: Instead of ad-hoc retrieval, this stack applies Structural Query Decomposition.
 
-Query Decomposer (Node 4): Breaks the complex record into 3–5 targeted clinical sub-queries (e.g., PSA velocity criteria, PI-RADS management pathways).   Parallel Retrieval (Node 5): Executes these sub-queries concurrently against the organized framework’s guidelines search tool, performing deduplication and reranking chunks before feeding verified clinical evidence into the state.  
+Risk Stratifier (Node 3): Combines LLM reasoning with rules to perform dynamic NCCN risk categorization.   
+
+Query Decomposer (Node 4): Breaks the complex record into 3–5 targeted clinical sub-queries (e.g., PSA velocity criteria, PI-RADS management pathways).   
+
+Parallel Retrieval (Node 5): Executes these sub-queries concurrently against the organized framework’s guidelines search tool, performing deduplication and reranking chunks before feeding verified clinical evidence into the state.  
 
 Node 6: Biopsy Decider (CoT Reasoning): This specialized urology decision agent receives all available signals: extracted clinical data, localized ML csPCa/readiness probabilities, and RAG-grounded guidelines. It performs step-by-step Chain-of-Thought (CoT) reasoning, reconciling signals, and noting any disagreements between the LLM and the numerical ML models.   
 
 Node 7: Guideline Validator (Safety Guard): A dedicated validator agent acts as a safety gate. It cross-checks the Biopsy Decider’s output and key factors against the retrieved guidelines. If the reasoning contradicts known guidelines (e.g., recommending against biopsy on a PI-RADS 5 lesion with high PSA density), it flags the decision as REJECTED and triggers a conditional routing loop back to the Decomposer (Node 4) for clarification.   
 
-Node 8: Deterministic Ensemble Fusion (Terminal Node): To avoid final-pass hallucination, this node is purely rule-based (non-LLM). It mathematically combines all risk signals (LLM confidence, localized ML probabilities, and validator verification scores) to produce the final biopsy recommendation (yes/no). It formats the output precisely into the Pydantic schema required by the challenge runner.  
+Node 8: Deterministic Ensemble Fusion (Terminal Node):
+To avoid final-pass hallucination, this node is purely rule-based (non-LLM). It mathematically combines all risk signals (LLM confidence, localized ML probabilities, and validator verification scores) to produce the final clinical determination. Crucially, it dynamically formats the output into the precise Pydantic schema required by the active challenge task—whether that is a biopsy recommendation (Task 1), a treatment decision (Task 2), or a time-to-recurrence prediction (Task 3)—ensuring seamless compatibility with the runner's evaluation scripts.
 
 For details on the challenge, tasks tested and Input/Output, please see the baseline repo: https://github.com/DIAGNijmegen/chimera-agent-baseline/
